@@ -1,0 +1,22 @@
+name: "lint"
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency: # One run of this workflow per branch.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (GitHub)
+        uses: actions/checkout@v3
+      - name: Lint in devcontainer
+        uses: devcontainers/ci@v0.2
+        with:
+          imageName: ghcr.io/opentrons/robot-stack-infra-devcontainer
+          push: never
+          runCmd: |
+            make lint
