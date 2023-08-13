@@ -1,0 +1,68 @@
+#!/bin/bash
+
+_user=ec2-user
+_runner_base=/home/$_user/actions-runner
+_cachedir=$_runner_base/cache
+_runnerversion=2.278.0
+_runnertar=actions-runner-linux-x64-$_runnerversion.tar.gz
+_runnersourceurl=https://github.com/actions/runner/releases/download/v$_runnerversion/$_runnertar
+
+yum update -y
+amazon-linux-extras install -y docker
+service docker start
+chkconfig docker on
+usermod -a -G docker $_user
+yum install git make -y
+
+if [[ -e /dev/sdf ]] ; then
+    # if we have an nvme EBS volume it gets an earlier devicenumber than the rest of the disks so our
+    # physical nvmes get bumped
+    mkfs.ext4 /dev/nvme2n1
+    sudo -u $_user mkdir $_runner_base
+    mount /dev/nvme2n1 $_runner_base
+    chown -R $_user:$_user $_runner_base
+
+    sudo -u $_user mkdir $_cachedir
+    mount /dev/sdf $_cachedir || eval "sudo mkfs.ext4 /dev/sdf && sudo mount /dev/sdf $_cachedir"
+    chown -R $_user:$_user $_cachedir
+    _local_cache=$_cachedir
+
+
+else
+    # if we don't, then it's the first device
+    mkfs.ext4 /dev/nvme1n1
+    sudo -u $_user mkdir $_runner_base
+    mount /dev/nvme1n1 $_runner_base
+    chown -R $_user:$_user $_runner_base
+
+fi
+
+
+sudo -u $_user curl -o $_runner_base/$_runnertar -L $_runnersourceurl
+sudo -u $_user tar xzf $_runner_base/$_runnertar -C $_runner_base
+
+_instanceid=$(wget -q -O - http://169.254.169.254/latest/meta-data/instance-id)
+#rebind terraform template-injected vars to shell vars here for shellcheck purposes
+#shellcheck disable=SC2154
+_github_repo_url="${github_repo_url}"
+#shellcheck disable=SC2154
+_github_pat="${github_repo_pat_token}"
+#shellcheck disable=SC2154
+_labels="${labels}"
+#shellcheck disable=SC2154
+_cache_bucket_arn="${cache_bucket_arn}"
+#shellcheck disable=SC2154
+_artifact_bucket_arn=${artifact_bucket_arn}
+
+sudo -u $_user EC2_INSTANCE_ID="$_instanceid" bash -c "cd $_runner_base;./config.sh --url $_github_repo_url --pat $_github_pat --work _work --runasservice --unattended --labels $_labels"
+
+cat <<EOF >$_runner_base/.env
+S3_CACHE_ARN=$_cache_bucket_arn
+S3_ARTIFACT_ARN=$_artifact_bucket_arn
+LOCAL_CACHE=$_local_cache
+EC2_INSTANCE_ID=$_instanceid
+EOF
+chown $_user:$_user $_runner_base/.env
+
+cd $_runner_base;./svc.sh install
+cd $_runner_base;./svc.sh start

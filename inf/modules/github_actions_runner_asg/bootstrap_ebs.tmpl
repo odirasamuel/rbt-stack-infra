@@ -1,0 +1,53 @@
+#!/bin/bash
+
+_user=ec2-user
+_runner_base=/home/$_user/actions-runner
+_cachedir=$_runner_base/cache
+_runnerversion=2.278.0
+_runnertar=actions-runner-linux-x64-$_runnerversion.tar.gz
+_runnersourceurl=https://github.com/actions/runner/releases/download/v$_runnerversion/$_runnertar
+
+yum update -y
+amazon-linux-extras install -y docker
+service docker start
+chkconfig docker on
+usermod -a -G docker $_user
+yum install git make -y
+
+sudo -u $_user mkdir /home/$_user/actions-runner
+
+if [[ -e /dev/sdf ]] ; then
+    sudo -u $_user mkdir $_cachedir
+    mount /dev/sdf $_cachedir || eval "mkfs.ext4 /dev/sdf && mount /dev/sdf /home/$_user/cache"
+    chown -R $_user:$_user $_cachedir
+    _local_cache=$_cachedir
+fi
+
+_instanceid=$(wget -q -O - http://169.254.169.254/latest/meta-data/instance-id)
+#rebind terraform template-injected vars to shell vars here for shellcheck purposes
+#shellcheck disable=SC2154
+_github_repo_url="${github_repo_url}"
+#shellcheck disable=SC2154
+_github_pat="${github_repo_pat_token}"
+#shellcheck disable=SC2154
+_labels="${labels}"
+#shellcheck disable=SC2154
+_cache_bucket_arn="${cache_bucket_arn}"
+#shellcheck disable=SC2154
+_artifact_bucket_arn=${artifact_bucket_arn}
+
+
+sudo -u $_user curl -o "$_runner_base"/"$_runnertar" -L $_runnersourceurl
+sudo -u $_user tar xzf "$_runner_base"/"$_runnertar" -C $_runner_base
+sudo -u $_user EC2_INSTANCE_ID="$_instanceid" bash -c "cd $_runner_base/;./config.sh --url $_github_repo_url --pat $_github_pat --work _work --runasservice --unattended --labels $_labels"
+
+cat <<EOF >$_runner_base/.env
+S3_CACHE_ARN=$_cache_bucket_arn
+LOCAL_CACHE=$_local_cache
+EC2_INSTANCE_ID=$_instanceid
+S3_ARTIFACT_ARN=$_artifact_bucket_arn
+EOF
+chown $_user:$_user $_runner_base/.env
+
+cd /home/$_user/actions-runner/;./svc.sh install
+cd /home/$_user/actions-runner/;./svc.sh start
