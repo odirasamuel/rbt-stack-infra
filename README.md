@@ -23,7 +23,3 @@ Terraform infrastructure for the rbt stack AWS accounts.
 6. Do Work!
 7. To reopen this environment, open VScode and use menu option File > Open Recent
    ![File > Open Recent](/docs/images/use_recent.png)
-
-## TODO
-
-Need answer to [this question.](https://github.com/devcontainers/ci/issues/89#issuecomment-1264343938)
