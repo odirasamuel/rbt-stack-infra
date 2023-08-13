@@ -16,7 +16,7 @@ jobs:
       - name: Lint in devcontainer
         uses: devcontainers/ci@v0.2
         with:
-          imageName: ghcr.io/opentrons/robot-stack-infra-devcontainer
+          imageName: ghcr.io/opent/robot-stack-infra-devcontainer
           push: never
           runCmd: |
             make lint
