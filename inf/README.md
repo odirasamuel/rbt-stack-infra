@@ -1,6 +1,6 @@
 # rbt-stack-infra
 
-This infra stack contains configuration for the automated AWS resources used for the opentrons robot stack - python package index web hosting, (eventually) app and robot software CI/CD, etc. Other stacks are managed in other repositories - for instance, this repo doesn't manage the protocol library, protocol designer, or the labware library.
+This infra stack contains configuration for the automated AWS resources used for the opent robot stack - python package index web hosting, (eventually) app and robot software CI/CD.
 
 See the stack subdirectories for more documentation on each stack.
 
